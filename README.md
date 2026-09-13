@@ -22,7 +22,7 @@
 
 ```bash
 # 1. 克隆仓库
-git clone <https://github.com/drkalerq/game1.git>
+git clone <你的克隆仓库>
 cd arrow-game
 
 # 2. 安装依赖
