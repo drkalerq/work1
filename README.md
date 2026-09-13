@@ -16,13 +16,13 @@
 - 操作系统：Windows 10 / 11（Linux、macOS 亦可运行）
 - Python：3.10 及以上
 - Pygame：2.5 及以上
-- 辅助开发：WorkBuddy / ChatGPT 等 AIGC 编程工具（详见博客）
+- 辅助开发：hy3
 
 ## 安装与运行
 
 ```bash
 # 1. 克隆仓库
-git clone <https://github.com/drkalerq/game1.git>
+git clone <你的克隆仓库>
 cd arrow-game
 
 # 2. 安装依赖
@@ -88,4 +88,10 @@ python -m unittest test_game -v
 ```
 
 测试覆盖作业要求的 T01~T06，以及“全部关卡可通关”“按策略能整关通关”。
+
+<img width="885" height="922" alt="屏幕截图 2026-09-13 195301" src="https://github.com/user-attachments/assets/123d4575-da06-461d-af13-c635f72733f3" />
+<img width="882" height="693" alt="屏幕截图 2026-09-13 195249" src="https://github.com/user-attachments/assets/d1f224cb-d5ba-4a97-a08c-01b938b8fdf9" />
+<img width="893" height="694" alt="屏幕截图 2026-09-13 195239" src="https://github.com/user-attachments/assets/3914c5cf-0f2c-4f15-ab9e-88db4b8b56ce" />
+<img width="898" height="697" alt="屏幕截图 2026-09-13 195231" src="https://github.com/user-attachments/assets/a28bbcc1-6e46-4ea4-a083-d44e28ce26e9" />
+
 
