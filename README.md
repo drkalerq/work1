@@ -22,7 +22,7 @@
 
 ```bash
 # 1. 克隆仓库
-git clone <你的克隆仓库>
+git clone <https://github.com/drkalerq/game1.git>
 cd arrow-game
 
 # 2. 安装依赖
@@ -88,9 +88,4 @@ python -m unittest test_game -v
 ```
 
 测试覆盖作业要求的 T01~T06，以及“全部关卡可通关”“按策略能整关通关”。
-## 游戏截图
-<img width="541" height="686" alt="屏幕截图 2026-09-13 173514" src="https://github.com/user-attachments/assets/22363dfb-f7ed-4931-b4c9-78268f1538c8" />
 
-<img width="775" height="926" alt="屏幕截图 2026-09-13 173531" src="https://github.com/user-attachments/assets/7e2ea325-de18-465e-a81c-2878b7aaf3b7" />
-
-<img width="787" height="935" alt="屏幕截图 2026-09-13 173542" src="https://github.com/user-attachments/assets/46a29c1e-89e8-4607-b587-c7ac6909cac5" />

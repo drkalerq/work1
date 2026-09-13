@@ -21,6 +21,8 @@ CELL = 84          # 每格的像素边长
 MARGIN_X = 50      # 棋盘到窗口左右边的距离
 TOP_UI = 96        # 顶部信息栏高度
 FPS = 60
+MIN_W = 600        # 窗口最小宽度（避免开始/结果界面文字被裁切）
+MIN_H = 440        # 窗口最小高度
 FLY_SPEED = 16     # 箭头飞出动画速度（像素/帧）
 
 C_BG = (28, 32, 48)
@@ -65,6 +67,26 @@ def draw_text(surface, text, x, y, font, color, center=False):
         surface.blit(img, img.get_rect(center=(x, y)))
     else:
         surface.blit(img, (x, y))
+
+
+def wrap_text(text, font, max_width):
+    """按字符宽度折行（兼容中文无空格文本），返回行列表。"""
+    lines = []
+    buf = ''
+    for ch in text:
+        if ch == '\n':
+            lines.append(buf)
+            buf = ''
+            continue
+        if font.size(buf + ch)[0] <= max_width:
+            buf += ch
+        else:
+            if buf:
+                lines.append(buf)
+            buf = ch
+    if buf:
+        lines.append(buf)
+    return lines
 
 
 def draw_arrow(surface, cx, cy, direction, color):
@@ -118,18 +140,21 @@ class App:
     # ---------- 窗口与按钮布局 ----------
     def _setup_window(self):
         lv = LEVELS[self.level_index]
-        w = MARGIN_X * 2 + lv['cols'] * CELL
-        h = TOP_UI + lv['rows'] * CELL + 80
+        w = max(MARGIN_X * 2 + lv['cols'] * CELL, MIN_W)
+        h = max(TOP_UI + lv['rows'] * CELL + 80, MIN_H)
         self.screen = pygame.display.set_mode((w, h))
         pygame.display.set_caption('一箭又一箭')
-        bx, by = MARGIN_X, TOP_UI
         bw, bh = lv['cols'] * CELL, lv['rows'] * CELL
+        # 棋盘在窗口中水平居中，紧贴顶部信息栏下方
+        self.board_x = (w - bw) // 2
+        self.board_y = TOP_UI
+        by = self.board_y
         cx = w // 2
         mid_y = by + bh // 2
-        # 底部两个常驻按钮
-        self.btn_restart = Button(bx, by + bh + 18, 150, 46, '重新开始')
-        self.btn_hint = Button(bx + 170, by + bh + 18, 150, 46, '提示')
-        # 结果界面按钮（位置重叠没关系，同一时刻只显示一个）
+        # 底部两个常驻按钮：左对齐窗口左边、右对齐窗口右边（棋盘下方左右分布）
+        self.btn_restart = Button(MARGIN_X, by + bh + 18, 150, 46, '重新开始')
+        self.btn_hint = Button(w - MARGIN_X - 150, by + bh + 18, 150, 46, '提示')
+        # 结果界面按钮（与棋盘同宽居中）
         self.btn_start = Button(cx - 100, mid_y - 28, 200, 56, '开始游戏')
         self.btn_next = Button(cx - 100, mid_y - 28, 200, 56, '下一关 →')
         self.btn_retry = Button(cx - 100, mid_y - 28, 200, 56, '重新开始')
@@ -150,8 +175,8 @@ class App:
                 self.hint_cell = find_hint(self.game)
                 return
             lv = LEVELS[self.level_index]
-            c = (pos[0] - MARGIN_X) // CELL
-            r = (pos[1] - TOP_UI) // CELL
+            c = (pos[0] - self.board_x) // CELL
+            r = (pos[1] - self.board_y) // CELL
             if 0 <= r < lv['rows'] and 0 <= c < lv['cols']:
                 res = self.game.click(r, c)
                 if res is None:
@@ -186,6 +211,7 @@ class App:
 
         if self.state == 'lost' and self.btn_retry.hit(pos):
             self._reset_level()
+            self.state = 'playing'
             return
 
     def _reset_level(self):
@@ -200,15 +226,15 @@ class App:
     # ---------- 每帧更新动画 ----------
     def update(self):
         lv = LEVELS[self.level_index]
-        board_right = MARGIN_X + lv['cols'] * CELL
-        board_bottom = TOP_UI + lv['rows'] * CELL
+        board_right = self.board_x + lv['cols'] * CELL
+        board_bottom = self.board_y + lv['rows'] * CELL
         new_flying = []
         for f in self.flying:
             f['dist'] += FLY_SPEED
             a = f['arrow']
             dr, dc = Arrow.DIRS[a.direction]
-            cx = MARGIN_X + a.col * CELL + CELL / 2 + dc * f['dist']
-            cy = TOP_UI + a.row * CELL + CELL / 2 + dr * f['dist']
+            cx = self.board_x + a.col * CELL + CELL / 2 + dc * f['dist']
+            cy = self.board_y + a.row * CELL + CELL / 2 + dr * f['dist']
             off = cx < -CELL or cx > board_right + CELL or cy < -CELL or cy > board_bottom + CELL
             if not off:
                 new_flying.append(f)
@@ -227,14 +253,19 @@ class App:
         m = pygame.mouse.get_pos()
 
         if self.state == 'start':
-            draw_text(self.screen, '一箭又一箭', w // 2, TOP_UI // 2 + 6, self.fonts['big'], C_TEXT, center=True)
+            draw_text(self.screen, '一箭又一箭', w // 2, 70, self.fonts['big'], C_TEXT, center=True)
             tips = [
                 '点击箭头，让它沿指向飞出棋盘',
                 '前方有阻挡时箭头会晃动变红，并消耗一次失误',
                 '清空全部箭头即可进入下一关，失误用尽则失败',
             ]
-            for i, t in enumerate(tips):
-                draw_text(self.screen, t, w // 2, TOP_UI + 30 + i * 34, self.fonts['small'], C_TEXT_DIM, center=True)
+            y = 128
+            for t in tips:
+                for line in wrap_text(t, self.fonts['small'], w - 100):
+                    draw_text(self.screen, line, w // 2, y, self.fonts['small'], C_TEXT_DIM, center=True)
+                    y += 32
+            btn_y = y + 26
+            self.btn_start.rect = pygame.Rect(w // 2 - 100, btn_y, 200, 56)
             self.btn_start.draw(self.screen, self.fonts['mid'], self.btn_start.hit(m))
             return
 
@@ -254,7 +285,7 @@ class App:
 
     def _draw_board(self):
         lv = LEVELS[self.level_index]
-        bx, by = MARGIN_X, TOP_UI
+        bx, by = self.board_x, self.board_y
         bw, bh = lv['cols'] * CELL, lv['rows'] * CELL
         pygame.draw.rect(self.screen, C_BOARD, (bx, by, bw, bh), border_radius=8)
         for r in range(lv['rows']):
@@ -277,29 +308,37 @@ class App:
 
     def _draw_top_ui(self):
         lv = LEVELS[self.level_index]
+        w = self.screen.get_width()
         draw_text(self.screen, lv['name'], MARGIN_X, 22, self.fonts['mid'], C_TEXT)
-        left = self.game.mistakes_allowed - self.game.mistakes
         draw_text(self.screen, f'剩余箭头: {self.game.remaining()}', MARGIN_X, 60, self.fonts['small'], C_TEXT_DIM)
+        left = self.game.mistakes_allowed - self.game.mistakes
         col = C_BLOCK if left <= 1 else C_TEXT_DIM
-        draw_text(self.screen, f'剩余失误: {left}', MARGIN_X + 200, 60, self.fonts['small'], col)
+        txt = f'剩余失误: {left}'
+        fw, _ = self.fonts['small'].size(txt)
+        draw_text(self.screen, txt, w - MARGIN_X - fw, 60, self.fonts['small'], col)
 
     def _draw_flying(self):
         for f in self.flying:
             a = f['arrow']
             dr, dc = Arrow.DIRS[a.direction]
-            cx = MARGIN_X + a.col * CELL + CELL / 2 + dc * f['dist']
-            cy = TOP_UI + a.row * CELL + CELL / 2 + dr * f['dist']
+            cx = self.board_x + a.col * CELL + CELL / 2 + dc * f['dist']
+            cy = self.board_y + a.row * CELL + CELL / 2 + dr * f['dist']
             draw_arrow(self.screen, cx, cy, a.direction, C_ARROW_FLY)
 
     def _draw_overlay(self, title, sub, btn):
-        lv = LEVELS[self.level_index]
         dim = pygame.Surface((self.screen.get_width(), self.screen.get_height()), pygame.SRCALPHA)
         dim.fill((10, 12, 20, 180))
         self.screen.blit(dim, (0, 0))
-        w = self.screen.get_width()
-        mid_y = TOP_UI + lv['rows'] * CELL // 2
-        draw_text(self.screen, title, w // 2, mid_y - 60, self.fonts['big'], C_TEXT, center=True)
-        draw_text(self.screen, sub, w // 2, mid_y - 12, self.fonts['mid'], C_TEXT_DIM, center=True)
+        w, h = self.screen.get_width(), self.screen.get_height()
+        cx = w // 2
+        # 标题居中偏上，副标题在其后换行显示，按钮放在最下方，三者互不重叠
+        draw_text(self.screen, title, cx, h * 0.40, self.fonts['big'], C_TEXT, center=True)
+        sub_lines = wrap_text(sub, self.fonts['mid'], w - 120)
+        sy = h * 0.40 + 52
+        for line in sub_lines:
+            draw_text(self.screen, line, cx, sy, self.fonts['mid'], C_TEXT_DIM, center=True)
+            sy += 34
+        btn.rect = pygame.Rect(cx - 100, sy + 18, 200, 56)
         m = pygame.mouse.get_pos()
         btn.draw(self.screen, self.fonts['mid'], btn.hit(m))
 
