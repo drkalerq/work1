@@ -135,6 +135,11 @@ class App:
         self.shaking = {}           # 正在晃动的箭头: (row,col) -> 剩余帧数
         self.hint_cell = None       # 提示高亮的格子
         self.screen = None
+        # 计时功能
+        self.level_start_time = 0    # 本关开始时刻（pygame 毫秒）
+        self.frozen_time = 0         # 冻结后的本关用时
+        self.timer_frozen = False    # 是否已冻结（通关/失败后停止计时）
+        self.total_time_ms = 0       # 累计总用时（全通关时展示）
         self._setup_window()
 
     # ---------- 窗口与按钮布局 ----------
@@ -165,11 +170,14 @@ class App:
         if self.state == 'start':
             if self.btn_start.hit(pos):
                 self.state = 'playing'
+                self.total_time_ms = 0
+                self._start_timer()
             return
 
         if self.state == 'playing':
             if self.btn_restart.hit(pos):
                 self._reset_level()
+                self._start_timer()
                 return
             if self.btn_hint.hit(pos):
                 self.hint_cell = find_hint(self.game)
@@ -188,8 +196,11 @@ class App:
                     self.shaking[(arrow.row, arrow.col)] = 18
                     self.hint_cell = None
                 if self.game.state == 'won':
+                    self._freeze_timer()
+                    self.total_time_ms += self.frozen_time
                     self.state = 'level_clear' if self.level_index < len(LEVELS) - 1 else 'all_clear'
                 elif self.game.state == 'lost':
+                    self._freeze_timer()
                     self.state = 'lost'
             return
 
@@ -199,6 +210,7 @@ class App:
             self._reset_anim()
             self._setup_window()
             self.state = 'playing'
+            self._start_timer()
             return
 
         if self.state == 'all_clear' and self.btn_restart_all.hit(pos):
@@ -207,11 +219,14 @@ class App:
             self._reset_anim()
             self._setup_window()
             self.state = 'playing'
+            self.total_time_ms = 0
+            self._start_timer()
             return
 
         if self.state == 'lost' and self.btn_retry.hit(pos):
             self._reset_level()
             self.state = 'playing'
+            self._start_timer()
             return
 
     def _reset_level(self):
@@ -222,6 +237,31 @@ class App:
         self.flying = []
         self.shaking = {}
         self.hint_cell = None
+
+    # ---------- 计时 ----------
+    def _start_timer(self):
+        """开始/重置本关计时。"""
+        self.level_start_time = pygame.time.get_ticks()
+        self.frozen_time = 0
+        self.timer_frozen = False
+
+    def _freeze_timer(self):
+        """冻结本关计时（通关或失败时调用，只冻结一次）。"""
+        if not self.timer_frozen:
+            self.frozen_time = pygame.time.get_ticks() - self.level_start_time
+            self.timer_frozen = True
+
+    def _elapsed_ms(self):
+        if self.timer_frozen:
+            return self.frozen_time
+        return pygame.time.get_ticks() - self.level_start_time
+
+    @staticmethod
+    def _fmt_time(ms):
+        total = ms // 1000
+        m = total // 60
+        s = total % 60
+        return f'{m:02d}:{s:02d}'
 
     # ---------- 每帧更新动画 ----------
     def update(self):
@@ -277,11 +317,14 @@ class App:
             self.btn_restart.draw(self.screen, self.fonts['mid'], self.btn_restart.hit(m))
             self.btn_hint.draw(self.screen, self.fonts['mid'], self.btn_hint.hit(m))
         elif self.state == 'level_clear':
-            self._draw_overlay('本关通关！', f'剩余失误 {self.game.mistakes_allowed - self.game.mistakes} 次', self.btn_next)
+            sub = f'剩余失误 {self.game.mistakes_allowed - self.game.mistakes} 次 · 用时 {self._fmt_time(self._elapsed_ms())}'
+            self._draw_overlay('本关通关！', sub, self.btn_next)
         elif self.state == 'lost':
-            self._draw_overlay('失败', '失误次数已用尽', self.btn_retry)
+            sub = f'失误次数已用尽 · 用时 {self._fmt_time(self._elapsed_ms())}'
+            self._draw_overlay('失败', sub, self.btn_retry)
         elif self.state == 'all_clear':
-            self._draw_overlay('全部通关！', f'你已通关全部 {len(LEVELS)} 关', self.btn_restart_all)
+            sub = f'你已通关全部 {len(LEVELS)} 关 · 总用时 {self._fmt_time(self.total_time_ms)}'
+            self._draw_overlay('全部通关！', sub, self.btn_restart_all)
 
     def _draw_board(self):
         lv = LEVELS[self.level_index]
@@ -310,6 +353,10 @@ class App:
         lv = LEVELS[self.level_index]
         w = self.screen.get_width()
         draw_text(self.screen, lv['name'], MARGIN_X, 22, self.fonts['mid'], C_TEXT)
+        # 右上角实时显示本关用时
+        timer_txt = '用时 ' + self._fmt_time(self._elapsed_ms())
+        tw, _ = self.fonts['mid'].size(timer_txt)
+        draw_text(self.screen, timer_txt, w - MARGIN_X - tw, 22, self.fonts['mid'], C_TEXT)
         draw_text(self.screen, f'剩余箭头: {self.game.remaining()}', MARGIN_X, 60, self.fonts['small'], C_TEXT_DIM)
         left = self.game.mistakes_allowed - self.game.mistakes
         col = C_BLOCK if left <= 1 else C_TEXT_DIM
